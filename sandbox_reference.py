@@ -36,10 +36,10 @@ def read_samples(directory, manifest, style, split):
     return rows
 
 
-def offline(training, testing):
+def offline(training, testing, predict_label):
     labels = Counter(row["decision"] for row in training)
     majority = max(sorted(labels), key=labels.get)
-    guesses = [predict(training, row["observation"]) for row in testing]
+    guesses = [predict_label(row["observation"]) for row in testing]
     actual = [row["decision"] for row in testing]
     guessed_abilities = [label.split("+")[1] for label in guesses]
     actual_abilities = [label.split("+")[1] for label in actual]
@@ -75,7 +75,7 @@ def ready_for_ability(row, pending):
             and (pending != "ranged" or int(row["projectile_ticks"]) == 0))
 
 
-def run_policy(sandbox, training, seed, ticks, directory, wait_for_melee_range):
+def run_policy(sandbox, predict_label, seed, ticks, directory, wait_for_melee_range):
     cmd = [str(sandbox), "--policy-stdio", "--seed", str(seed), "--ticks", str(ticks),
            "--record", str(directory)]
     movement = "hold"
@@ -98,7 +98,7 @@ def run_policy(sandbox, training, seed, ticks, directory, wait_for_melee_range):
                 row = dict(zip(FEATURES, fields[1:]))
                 row["tick"] = tick
                 if tick % INTERVAL == 0:
-                    label = predict(training, observations(row))
+                    label = predict_label(observations(row))
                     decisions[label] += 1
                     movement, pending = label.split("+")
                 x, y = decode_movement(row, movement)
@@ -126,6 +126,12 @@ def run_policy(sandbox, training, seed, ticks, directory, wait_for_melee_range):
         math.hypot(float(r["enemy_x"]) - float(r["player_x"]), float(r["enemy_y"]) - float(r["player_y"]))
         for r in attacks
     ]
+    recovery_approach_ticks = 0
+    for row in frames:
+        if int(row["enemy_recovery"]) > 0:
+            dx = float(row["enemy_x"]) - float(row["player_x"])
+            dy = float(row["enemy_y"]) - float(row["player_y"])
+            recovery_approach_ticks += int(row["move_x"]) * dx + int(row["move_y"]) * dy > 0
     return {
         **end, "decisions": dict(decisions),
         "applied_attacks": dict(Counter(row["applied"] for row in attacks)),
@@ -133,6 +139,8 @@ def run_policy(sandbox, training, seed, ticks, directory, wait_for_melee_range):
                                      for row in attacks),
         "melee_hits": sum(row["applied"] == "melee" and int(row["damage_to_enemy"]) > 0
                           for row in attacks),
+        "recovery_approach_input_ticks": recovery_approach_ticks,
+        "damage_received": sum(int(row["damage_to_player"]) for row in frames),
         "median_attack_distance": statistics.median(attack_distances) if attack_distances else None,
         "record_sha256": hashlib.sha256(recording.read_bytes()).hexdigest(),
         "replay_verified": True,
@@ -154,14 +162,17 @@ def evaluate(directory, sandbox, output, ticks, wait_for_melee_range, rollout_se
     for style in STYLES:
         training = read_samples(directory, manifest, style, "train")
         testing = read_samples(directory, manifest, style, "test")
+        def predict_label(observation):
+            return predict(training, observation)
+
         write_json(output / f"{style}-model.json", {
             "schema": "sandbox-nearest-neighbour-v1", "style": style, "train_seeds": manifest["train_seeds"],
             "feature_order": manifest["feature_order"],
             "examples": [{"observation": row["observation"], "decision": row["decision"]} for row in training],
         })
         styles[style] = {
-            "offline": offline(training, testing),
-            "closed_loop": [run_policy(sandbox, training, seed, ticks, output / f"{style}-{seed}",
+            "offline": offline(training, testing, predict_label),
+            "closed_loop": [run_policy(sandbox, predict_label, seed, ticks, output / f"{style}-{seed}",
                                        wait_for_melee_range)
                             for seed in rollout_seeds],
         }

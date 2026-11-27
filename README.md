@@ -25,3 +25,13 @@ python -B experiment-suite/sandbox_reference.py datasets/style-pilot combat-sand
 첫 명령은 사람이 플레이한 양쪽 시연을 10 Hz 단일 범주 판단으로 변환한다. 두 번째 명령은 성향별 최근접 이웃 참조 정책을 만들고, 시연에 대한 오프라인 정확도와 같은 평가 시드에서의 Sandbox 동작을 기록한다. 시연, 변환된 개인 데이터, 참조 정책 파일과 재생 기록은 로컬 경로에 저장된다.
 
 [Sandbox 판단 데이터와 외부 정책 규격](https://github.com/ex-anima/docs/blob/feature/sandbox-first/SANDBOX_DECISIONS.md)
+
+## Core 저장 모델 평가
+
+Core에서 학습 실행 파일과 추론 전용 실행 파일을 각각 빌드한 뒤 Ex Anima 작업 공간에서 실행한다.
+
+```powershell
+python -B experiment-suite/core_style.py datasets/style-pilot core/build/full/Release/exanima-train.exe core/build/inference/Release/exanima-infer.exe combat-sandbox/build/Release/exanima-sandbox.exe results/core-style-mlp --balance-classes --rollout-seed 301 --rollout-seed 407 --rollout-seed 509
+```
+
+성향별 학습 설정과 모델을 저장한 뒤 추론 전용 CLI를 시작해 시연 판단 일치율을 계산하고 Sandbox를 조작한다. 같은 시드에서 참조 정책도 실행하면 공격 거리, 상대 회복 중 접근·근거리 공격, 피격량과 승패를 비교할 수 있다.
