@@ -11,4 +11,17 @@
 
 데이터·모델·환경·도구의 버전, 설정, 시드와 결과를 함께 기록한다. 자동화 언어, 실행 인터페이스, 결과 형식과 평가 임계값은 상세 설계와 기준선 실험을 거쳐 결정한다.
 
-현재 초기 설계 단계다. [통합 프로젝트 기획서 v0.2](https://github.com/ex-anima/docs/blob/main/PROJECT_PLAN.md)
+## Sandbox 사람 시연의 첫 성향별 실험
+
+Python 3.10 이상과 `--policy-stdio`를 지원하는 Sandbox 실행 파일을 사용한다. Ex Anima 작업 공간에서 실행한다. 두 출력 디렉터리에는 새 경로를 지정한다.
+
+```powershell
+$pilot = 'results/sandbox-human-pilot/<session>'
+python -B experiment-suite/sandbox_decisions.py $pilot datasets/style-pilot --test-seed 111
+python -B experiment-suite/sandbox_reference.py datasets/style-pilot combat-sandbox/build/Release/exanima-sandbox.exe results/style-reference
+python -B experiment-suite/sandbox_reference.py datasets/style-pilot combat-sandbox/build/Release/exanima-sandbox.exe results/style-reference-range --wait-for-melee-range --rollout-seed 111 --rollout-seed 201 --rollout-seed 202 --rollout-seed 203
+```
+
+첫 명령은 사람이 플레이한 양쪽 시연을 10 Hz 단일 범주 판단으로 변환한다. 두 번째 명령은 성향별 최근접 이웃 참조 정책을 만들고, 시연에 대한 오프라인 정확도와 같은 평가 시드에서의 Sandbox 동작을 기록한다. 시연, 변환된 개인 데이터, 참조 정책 파일과 재생 기록은 로컬 경로에 저장된다.
+
+[Sandbox 판단 데이터와 외부 정책 규격](https://github.com/ex-anima/docs/blob/feature/sandbox-first/SANDBOX_DECISIONS.md)
