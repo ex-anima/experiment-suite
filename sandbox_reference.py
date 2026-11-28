@@ -15,6 +15,7 @@ from sandbox_decisions import FEATURES, INTERVAL, SCHEMA, STYLES, observations, 
 
 AXES = tuple((x, y) for x in (-1, 0, 1) for y in (-1, 0, 1) if (x, y) != (0, 0))
 COOLDOWNS = {"melee": "melee_cd", "ranged": "ranged_cd", "parry": "parry_cd", "dodge": "dodge_cd"}
+MOVEMENT_FEATURES = tuple(f"movement_{direction}" for direction in ("n", "ne", "e", "se", "s", "sw", "w", "nw"))
 
 
 def predict(training, observation):
@@ -75,9 +76,16 @@ def ready_for_ability(row, pending):
             and (pending != "ranged" or int(row["projectile_ticks"]) == 0))
 
 
-def run_policy(sandbox, predict_label, seed, ticks, directory, wait_for_melee_range):
+def run_policy(sandbox, predict_label, seed, ticks, directory, wait_for_melee_range, *,
+               layout="standard", movement_observation=False, movement_decoder=decode_movement):
     cmd = [str(sandbox), "--policy-stdio", "--seed", str(seed), "--ticks", str(ticks),
            "--record", str(directory)]
+    if layout != "standard":
+        cmd.extend(["--layout", layout])
+    if movement_observation:
+        cmd.append("--movement-observation")
+    melee_index = len(FEATURES) + 1
+    field_count = melee_index + 1 + (len(MOVEMENT_FEATURES) if movement_observation else 0)
     movement = "hold"
     pending = "none"
     decisions = Counter()
@@ -92,19 +100,25 @@ def run_policy(sandbox, predict_label, seed, ticks, directory, wait_for_melee_ra
                     end = {"seed": seed, "ticks": tick, "player_hp": player_hp,
                            "enemy_hp": enemy_hp, "outcome": fields[3]}
                     break
-                if kind != "state" or len(fields) != len(FEATURES) + 2 or fields[-1] not in {"0", "1"}:
+                if kind != "state" or len(fields) != field_count or fields[melee_index] not in {"0", "1"}:
                     raise ValueError(f"Unexpected Sandbox protocol: {line!r}")
                 tick = int(fields[0])
                 row = dict(zip(FEATURES, fields[1:]))
                 row["tick"] = tick
                 if tick % INTERVAL == 0:
-                    label = predict_label(observations(row))
+                    observation = observations(row)
+                    if movement_observation:
+                        availability = [float(value) for value in fields[melee_index + 1:]]
+                        if any(not 0 <= value <= 1 for value in availability):
+                            raise ValueError(f"Invalid movement observation: {line!r}")
+                        observation.extend(availability)
+                    label = predict_label(observation)
                     decisions[label] += 1
                     movement, pending = label.split("+")
-                x, y = decode_movement(row, movement)
+                x, y = movement_decoder(row, movement)
                 ability = "none"
                 if ready_for_ability(row, pending) and (
-                    not wait_for_melee_range or pending != "melee" or fields[-1] == "1"
+                    not wait_for_melee_range or pending != "melee" or fields[melee_index] == "1"
                 ):
                     ability, pending = pending, "none"
                 simulator.stdin.write(f"{x}\t{y}\t{ability}\n")

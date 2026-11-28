@@ -35,3 +35,13 @@ python -B experiment-suite/core_style.py datasets/style-pilot core/build/full/Re
 ```
 
 성향별 학습 설정과 모델을 저장한 뒤 추론 전용 CLI를 시작해 시연 판단 일치율을 계산하고 Sandbox를 조작한다. 같은 시드에서 참조 정책도 실행하면 공격 거리, 상대 회복 중 접근·근거리 공격, 피격량과 승패를 비교할 수 있다.
+
+## 저장된 v0.1.0 후보 실행
+
+후보 디렉터리에는 `candidate.json`과 `cautious`, `aggressive` 모델 디렉터리가 있다. 아래 명령은 후보의 모델 해시와 입출력 호환성을 검사하고 두 모델을 동일한 시드로 실행한다. 출력 디렉터리는 새 경로여야 한다.
+
+```powershell
+python -B experiment-suite/core_candidate.py models/v0.1.0-candidate core/build/inference/Release/exanima-infer.exe combat-sandbox/build/movement-observation-verified/exanima-sandbox.exe results/candidate-run
+```
+
+기본값은 후보에 기록된 시드와 기본 배치다. `--seed N`을 반복 지정해 원하는 시드를 사용할 수 있고, `--layout inset`으로 변경 배치를 실행할 수 있다. 실행 조건은 `protocol.json`, 재생 검증 결과는 `summary.json`, 원본 기록은 `<성향>/<시드>/episode-1.tsv`에 남는다. [외부 정책 규격](https://github.com/ex-anima/docs/blob/9a069aca8ff250a4453f1467799f4277c8e0bdc7/SANDBOX_DECISIONS.md)

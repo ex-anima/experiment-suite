@@ -17,7 +17,7 @@ def sha256(path):
 
 
 @contextmanager
-def inference(executable, model):
+def inference(executable, model, *, before_close=None):
     with subprocess.Popen([str(executable), str(model)], stdin=subprocess.PIPE,
                           stdout=subprocess.PIPE, text=True, encoding="utf-8") as process:
         def predict_label(observation):
@@ -30,6 +30,8 @@ def inference(executable, model):
 
         try:
             yield predict_label
+            if before_close is not None:
+                before_close(process.pid)
             process.stdin.close()
             if process.wait() != 0:
                 raise RuntimeError("Core inference exited with an error")
